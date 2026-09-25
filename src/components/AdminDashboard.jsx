@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
-import { getProductos, crearProducto, actualizarProducto, eliminarProducto } from '../services/catalogoService';
+import {
+    getPedidos,
+    actualizarEstadoPedido,
+    cancelarPedidoAdmin
+} from '../services/pedidosService';
+import {
+    getProductos,
+    crearProducto,
+    actualizarProducto,
+    eliminarProducto
+} from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
 
 const SUB_TAB_ESTADOS = [
@@ -68,7 +77,12 @@ export const AdminDashboard = () => {
 
     const handleCambiarEstado = async (id, nuevoEstado) => {
         try {
-            await actualizarEstadoPedido(id, nuevoEstado);
+            if (nuevoEstado === 'CANCELADO') {
+                await cancelarPedidoAdmin(id);
+            } else {
+                await actualizarEstadoPedido(id, nuevoEstado);
+            }
+
             await cargarDatos();
         } catch (err) {
             const msj = err.response?.data || err.message;

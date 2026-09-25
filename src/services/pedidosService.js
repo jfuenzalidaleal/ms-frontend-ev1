@@ -20,8 +20,20 @@ export const actualizarEstadoPedido = async (id, nuevoEstado) => {
     return response.data;
 };
 
+export const cancelarPedidoAdmin = async (id) => {
+    const response = await axiosClient.patch(
+        `${PEDIDOS_URL}/${id}/cancelar-admin`
+    );
+
+    return response.data;
+};
+
 export const crearPedido = async (pedidoData) => {
-    const response = await axiosClient.post(PEDIDOS_URL, pedidoData);
+    const response = await axiosClient.post(
+        PEDIDOS_URL,
+        pedidoData
+    );
+
     return response.data;
 };
 
@@ -34,6 +46,9 @@ export const getPedidosPorCliente = async (clienteId) => {
 };
 
 export const getMetricasVentas = async () => {
-    const response = await axiosClient.get(`${PEDIDOS_URL}/metricas`);
+    const response = await axiosClient.get(
+        `${PEDIDOS_URL}/metricas`
+    );
+
     return response.data;
 };
