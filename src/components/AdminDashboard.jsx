@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
 import { getProductos, crearProducto, actualizarProducto, eliminarProducto } from '../services/catalogoService';
+import { CrearPedidoModal } from './CrearPedidoModal';
 
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
@@ -34,6 +35,12 @@ export const AdminDashboard = () => {
     const [formProducto, setFormProducto] = useState(PRODUCTO_VACIO);
     const [guardando, setGuardando] = useState(false);
     const [errorForm, setErrorForm] = useState(null);
+
+    // --- Estado del modal de creación de pedido ---
+    const [modalPedidoAbierto, setModalPedidoAbierto] = useState(false);
+
+    // --- Estado del detalle expandible de pedidos ---
+    const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
 
     useEffect(() => {
         cargarDatos();
@@ -101,6 +108,33 @@ export const AdminDashboard = () => {
     const volumenPedidos = pedidos.length;
     const ticketPromedio = volumenPedidos > 0 ? Math.round(totalIngresos / volumenPedidos) : 0;
     const valorInventario = productos.reduce((sum, p) => sum + ((p.precio || 0) * (p.stock || 0)), 0);
+
+    // Mapa id -> producto, para resolver nombres en el detalle de pedidos (O(1) por ítem)
+    const productosPorId = useMemo(() => {
+        const mapa = {};
+        productos.forEach(p => { mapa[p.id] = p; });
+        return mapa;
+    }, [productos]);
+
+    const obtenerNombreProducto = (productoId) => {
+        const producto = productosPorId[productoId];
+        return producto?.nombre || `Producto #${productoId}`;
+    };
+
+    const formatearFecha = (fecha) => {
+        if (!fecha) return '';
+        try {
+            return new Date(fecha).toLocaleString('es-CL', {
+                day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+        } catch {
+            return fecha;
+        }
+    };
+
+    const toggleDetallePedido = (id) => {
+        setPedidoExpandidoId(prev => (prev === id ? null : id));
+    };
 
     // --- Handlers del CRUD de productos ---
 
@@ -196,16 +230,18 @@ export const AdminDashboard = () => {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                    <button style={{
-                        backgroundColor: '#0f172a',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '12px 24px',
-                        borderRadius: '24px',
-                        fontWeight: '700',
-                        fontSize: '0.9rem',
-                        cursor: 'pointer'
-                    }}>
+                    <button
+                        onClick={() => setModalPedidoAbierto(true)}
+                        style={{
+                            backgroundColor: '#0f172a',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '12px 24px',
+                            borderRadius: '24px',
+                            fontWeight: '700',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer'
+                        }}>
                         Crear Pedido
                     </button>
                     <button
@@ -354,65 +390,118 @@ export const AdminDashboard = () => {
                                 <th style={{ padding: '16px 8px', fontSize: '0.75rem', fontWeight: '800', color: '#8a92a6', letterSpacing: '0.5px' }}>ID / CLIENTE</th>
                                 <th style={{ padding: '16px 8px', fontSize: '0.75rem', fontWeight: '800', color: '#8a92a6', letterSpacing: '0.5px' }}>TOTAL</th>
                                 <th style={{ padding: '16px 8px', fontSize: '0.75rem', fontWeight: '800', color: '#8a92a6', letterSpacing: '0.5px' }}>ESTADO ACTUAL</th>
+                                <th style={{ padding: '16px 8px', fontSize: '0.75rem', fontWeight: '800', color: '#8a92a6', letterSpacing: '0.5px', textAlign: 'center' }}>DETALLE</th>
                                 <th style={{ padding: '16px 8px', fontSize: '0.75rem', fontWeight: '800', color: '#8a92a6', letterSpacing: '0.5px', textAlign: 'right' }}>CAMBIAR ESTADO</th>
                             </tr>
                             </thead>
                             <tbody>
                             {pedidosFiltrados.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#8a92a6' }}>
+                                    <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: '#8a92a6' }}>
                                         No hay pedidos registrados en este estado.
                                     </td>
                                 </tr>
                             ) : (
                                 pedidosFiltrados.map(pedido => {
                                     const opciones = obtenerSiguientesEstados(pedido.estado);
+                                    const expandido = pedidoExpandidoId === pedido.id;
                                     return (
-                                        <tr key={pedido.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                                            <td style={{ padding: '16px 8px' }}>
-                                                <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '0.95rem' }}>
-                                                    Pedido #{pedido.id}
-                                                </div>
-                                                <div style={{ fontSize: '0.8rem', color: '#8a92a6', marginTop: '2px' }}>
-                                                    Cliente ID: {pedido.clienteId || 'Cliente registrado'}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '16px 8px', fontWeight: '800', color: '#0f172a', fontSize: '0.95rem' }}>
-                                                ${(pedido.total || 0).toLocaleString('es-CL')}
-                                            </td>
-                                            <td style={{ padding: '16px 8px', fontWeight: '800', fontSize: '0.85rem', color: getEstadoColor(pedido.estado) }}>
-                                                {pedido.estado}
-                                            </td>
-                                            <td style={{ padding: '16px 8px', textAlign: 'right' }}>
-                                                {opciones.length > 0 ? (
-                                                    <select
-                                                        value={pedido.estado}
-                                                        onChange={(e) => handleCambiarEstado(pedido.id, e.target.value)}
+                                        <React.Fragment key={pedido.id}>
+                                            <tr style={{ borderBottom: expandido ? 'none' : '1px solid #f8fafc' }}>
+                                                <td style={{ padding: '16px 8px' }}>
+                                                    <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '0.95rem' }}>
+                                                        Pedido #{pedido.id}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#8a92a6', marginTop: '2px' }}>
+                                                        Cliente: {pedido.clienteId || 'Cliente registrado'}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '16px 8px', fontWeight: '800', color: '#0f172a', fontSize: '0.95rem' }}>
+                                                    ${(pedido.total || 0).toLocaleString('es-CL')}
+                                                </td>
+                                                <td style={{ padding: '16px 8px', fontWeight: '800', fontSize: '0.85rem', color: getEstadoColor(pedido.estado) }}>
+                                                    {pedido.estado}
+                                                </td>
+                                                <td style={{ padding: '16px 8px', textAlign: 'center' }}>
+                                                    <button
+                                                        onClick={() => toggleDetallePedido(pedido.id)}
                                                         style={{
-                                                            padding: '8px 16px', borderRadius: '20px', border: '1px solid #e2e8f0',
-                                                            backgroundColor: '#f8fafc', fontWeight: '700', fontSize: '0.8rem',
-                                                            color: getEstadoColor(pedido.estado), cursor: 'pointer', outline: 'none'
-                                                        }}
-                                                    >
-                                                        <option value={pedido.estado} disabled>
-                                                            {pedido.estado}
-                                                        </option>
-                                                        {opciones.map(sig => (
-                                                            <option key={sig} value={sig} style={{ color: '#0f172a' }}>
-                                                                {sig}
+                                                            border: '1px solid #e2e8f0', backgroundColor: expandido ? '#0f172a' : '#fff',
+                                                            color: expandido ? '#fff' : '#475569',
+                                                            padding: '6px 14px', borderRadius: '12px', fontWeight: '700',
+                                                            fontSize: '0.8rem', cursor: 'pointer'
+                                                        }}>
+                                                        {expandido ? 'Ocultar' : 'Ver detalle'}
+                                                    </button>
+                                                </td>
+                                                <td style={{ padding: '16px 8px', textAlign: 'right' }}>
+                                                    {opciones.length > 0 ? (
+                                                        <select
+                                                            value={pedido.estado}
+                                                            onChange={(e) => handleCambiarEstado(pedido.id, e.target.value)}
+                                                            style={{
+                                                                padding: '8px 16px', borderRadius: '20px', border: '1px solid #e2e8f0',
+                                                                backgroundColor: '#f8fafc', fontWeight: '700', fontSize: '0.8rem',
+                                                                color: getEstadoColor(pedido.estado), cursor: 'pointer', outline: 'none'
+                                                            }}
+                                                        >
+                                                            <option value={pedido.estado} disabled>
+                                                                {pedido.estado}
                                                             </option>
-                                                        ))}
-                                                    </select>
-                                                ) : (
-                                                    <span style={{
-                                                        padding: '8px 16px', borderRadius: '20px', backgroundColor: '#f1f5f9',
-                                                        color: getEstadoColor(pedido.estado), fontWeight: '700', fontSize: '0.8rem'
-                                                    }}>
-                                                            {pedido.estado}
-                                                        </span>
-                                                )}
-                                            </td>
-                                        </tr>
+                                                            {opciones.map(sig => (
+                                                                <option key={sig} value={sig} style={{ color: '#0f172a' }}>
+                                                                    {sig}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <span style={{
+                                                            padding: '8px 16px', borderRadius: '20px', backgroundColor: '#f1f5f9',
+                                                            color: getEstadoColor(pedido.estado), fontWeight: '700', fontSize: '0.8rem'
+                                                        }}>
+                                                                {pedido.estado}
+                                                            </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+
+                                            {/* Fila expandible con el detalle de ítems del pedido */}
+                                            {expandido && (
+                                                <tr style={{ borderBottom: '1px solid #f8fafc' }}>
+                                                    <td colSpan="5" style={{ padding: '0 8px 20px 8px' }}>
+                                                        <div style={{
+                                                            backgroundColor: '#f8fafc', borderRadius: '12px', padding: '16px 20px'
+                                                        }}>
+                                                            {pedido.fechaCreacion && (
+                                                                <p style={{ fontSize: '0.8rem', color: '#8a92a6', margin: '0 0 10px 0' }}>
+                                                                    Creado: {formatearFecha(pedido.fechaCreacion)}
+                                                                </p>
+                                                            )}
+                                                            {pedido.items && pedido.items.length > 0 ? (
+                                                                pedido.items.map((item, idx) => (
+                                                                    <div key={idx} style={{
+                                                                        display: 'flex', justifyContent: 'space-between',
+                                                                        fontSize: '0.85rem', color: '#334155', padding: '6px 0',
+                                                                        borderBottom: idx < pedido.items.length - 1 ? '1px solid #e2e8f0' : 'none'
+                                                                    }}>
+                                                                        <span style={{ fontWeight: '600' }}>
+                                                                            {item.cantidad}x {obtenerNombreProducto(item.productoId)}
+                                                                        </span>
+                                                                        <span style={{ fontWeight: '700' }}>
+                                                                            ${((item.precioUnitario || 0) * item.cantidad).toLocaleString('es-CL')}
+                                                                        </span>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <p style={{ fontSize: '0.85rem', color: '#8a92a6', margin: 0 }}>
+                                                                    Este pedido no tiene ítems registrados.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     );
                                 })
                             )}
@@ -614,6 +703,15 @@ export const AdminDashboard = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* MODAL DE CREACIÓN DE PEDIDO */}
+            {modalPedidoAbierto && (
+                <CrearPedidoModal
+                    productos={productos}
+                    onClose={() => setModalPedidoAbierto(false)}
+                    onCreated={cargarDatos}
+                />
             )}
         </div>
     );

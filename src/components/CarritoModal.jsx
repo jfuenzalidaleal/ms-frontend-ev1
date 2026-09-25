@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import axiosClient from '../services/axiosClient';
+import { useMsal } from '@azure/msal-react';
+import { crearPedido } from '../services/pedidosService';
 
 export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito }) {
+    const { accounts } = useMsal();
     const [enviando, setEnviando] = useState(false);
     const [exito, setExito] = useState(false);
     const [error, setError] = useState(null);
 
     if (!show) return null;
 
-    // Calcular el total de la compra
     const total = carrito.reduce((acc, item) => {
         const precio = item.precio ?? item.precioUnitario ?? 0;
         return acc + precio * item.cantidad;
@@ -16,43 +17,67 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
 
     const formatearPrecio = (valor) => `$${Number(valor || 0).toLocaleString('es-CL')}`;
 
-    // Incrementar / Decrementar cantidad
     const cambiarCantidad = (id, delta) => {
+        setError(null);
+
         setCarrito((prev) =>
             prev
                 .map((item) => {
-                    if (item.id === id) {
-                        const nuevaCant = item.cantidad + delta;
-                        return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : null;
+                    if (item.id !== id) return item;
+
+                    const nuevaCant = item.cantidad + delta;
+
+                    // Validación de stock: solo aplica al incrementar (delta > 0)
+                    if (delta > 0) {
+                        const stockDisponible = item.stock ?? 0;
+                        if (nuevaCant > stockDisponible) {
+                            setError(`No hay suficiente stock de "${item.nombre}". Disponible: ${stockDisponible} unidad(es).`);
+                            return item; // no modifica la cantidad
+                        }
                     }
-                    return item;
+
+                    return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : null;
                 })
                 .filter(Boolean)
         );
     };
 
-    // Eliminar producto individual
     const eliminarProducto = (id) => {
         setCarrito((prev) => prev.filter((item) => item.id !== id));
     };
 
-    // Procesar la compra
     const handleCheckout = async () => {
         if (carrito.length === 0) return;
+
+        // Validación final de stock antes de confirmar la compra
+        const itemSinStock = carrito.find((item) => item.cantidad > (item.stock ?? 0));
+        if (itemSinStock) {
+            setError(`No hay suficiente stock de "${itemSinStock.nombre}". Disponible: ${itemSinStock.stock ?? 0} unidad(es).`);
+            return;
+        }
+
+        const clienteId = accounts?.[0]?.username;
+        if (!clienteId) {
+            setError("No se pudo identificar tu sesión. Vuelve a iniciar sesión e intenta de nuevo.");
+            return;
+        }
+
         setEnviando(true);
         setError(null);
 
         try {
             const payload = {
+                clienteId,
+                estado: 'CREADO',
+                total: total,
                 items: carrito.map((item) => ({
                     productoId: item.id,
                     cantidad: item.cantidad,
                     precioUnitario: item.precio ?? item.precioUnitario ?? 0
-                })),
-                total: total
+                }))
             };
 
-            await axiosClient.post('/pedidos', payload);
+            await crearPedido(payload);
             setExito(true);
             vaciarCarrito();
             setTimeout(() => {
@@ -69,17 +94,14 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
 
     return (
         <div className="fixed inset-0 z-50 overflow-hidden">
-            {/* Fondo Oscuro Transparente */}
             <div
                 className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
                 onClick={onHide}
             />
 
             <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-                {/* Panel Lateral Slide-Over */}
                 <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between">
 
-                    {/* Encabezado */}
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                             <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold">
@@ -95,7 +117,6 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                             </div>
                         </div>
 
-                        {/* Botón Cerrar (X) */}
                         <button
                             onClick={onHide}
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
@@ -106,7 +127,6 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                         </button>
                     </div>
 
-                    {/* Mensaje de Éxito al Finalizar */}
                     {exito ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
                             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
@@ -118,7 +138,6 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                             <p className="text-sm text-gray-500">Tu orden ha sido registrada exitosamente en el sistema.</p>
                         </div>
                     ) : (
-                        /* Lista de Productos */
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 divide-y divide-gray-100">
                             {error && (
                                 <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs font-semibold border border-red-200">
@@ -144,10 +163,10 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                                     const nombre = item.nombre || item.nombreProducto || "Producto";
                                     const precio = item.precio ?? item.precioUnitario ?? 0;
                                     const imagen = item.imagen || item.imagenUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80";
+                                    const alcanzoStockMaximo = item.cantidad >= (item.stock ?? 0);
 
                                     return (
                                         <div key={item.id} className="pt-4 first:pt-0 flex space-x-4 items-center">
-                                            {/* Imagen del producto */}
                                             <img
                                                 src={imagen}
                                                 alt={nombre}
@@ -157,14 +176,12 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                                                 }}
                                             />
 
-                                            {/* Info */}
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="text-sm font-bold text-gray-900 truncate">{nombre}</h4>
                                                 <p className="text-xs font-bold text-red-600 mt-0.5">
                                                     {formatearPrecio(precio)}
                                                 </p>
 
-                                                {/* Botones de Cantidad (+ / -) */}
                                                 <div className="flex items-center space-x-2 mt-2">
                                                     <div className="flex items-center bg-gray-100 rounded-lg border border-gray-200">
                                                         <button
@@ -178,7 +195,13 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                                                         </span>
                                                         <button
                                                             onClick={() => cambiarCantidad(item.id, 1)}
-                                                            className="px-2 py-0.5 text-gray-600 hover:bg-gray-200 rounded-r-lg font-bold text-xs"
+                                                            disabled={alcanzoStockMaximo}
+                                                            title={alcanzoStockMaximo ? 'Alcanzaste el stock disponible' : undefined}
+                                                            className={`px-2 py-0.5 rounded-r-lg font-bold text-xs ${
+                                                                alcanzoStockMaximo
+                                                                    ? 'text-gray-300 cursor-not-allowed'
+                                                                    : 'text-gray-600 hover:bg-gray-200'
+                                                            }`}
                                                         >
                                                             +
                                                         </button>
@@ -191,9 +214,14 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                                                         Eliminar
                                                     </button>
                                                 </div>
+
+                                                {alcanzoStockMaximo && (
+                                                    <p className="text-[11px] text-amber-600 font-semibold mt-1">
+                                                        Stock máximo alcanzado ({item.stock ?? 0} disponibles)
+                                                    </p>
+                                                )}
                                             </div>
 
-                                            {/* Subtotal Ítem */}
                                             <div className="text-right font-extrabold text-sm text-gray-900">
                                                 {formatearPrecio(precio * item.cantidad)}
                                             </div>
@@ -204,7 +232,6 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                         </div>
                     )}
 
-                    {/* Footer con Total y Checkout */}
                     {!exito && carrito.length > 0 && (
                         <div className="p-6 border-t border-gray-100 bg-gray-50/50 space-y-4">
                             <div className="space-y-1.5">

@@ -15,6 +15,17 @@ export const actualizarEstadoPedido = async (id, nuevoEstado) => {
     return response.data;
 };
 
+export const crearPedido = async (pedidoData) => {
+    const response = await axiosClient.post(PEDIDOS_URL, pedidoData);
+    return response.data;
+};
+
+// Pedidos de un cliente específico (usado en "Mis Pedidos")
+export const getPedidosPorCliente = async (clienteId) => {
+    const response = await axiosClient.get(`${PEDIDOS_URL}/client/${encodeURIComponent(clienteId)}`);
+    return response.data;
+};
+
 export const getMetricasVentas = async () => {
     const response = await axiosClient.get(`${PEDIDOS_URL}/metricas`);
     return response.data;
