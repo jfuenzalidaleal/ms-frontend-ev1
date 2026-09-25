@@ -1,62 +1,64 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
-import { Catalogo } from './pages/CatalogoPage';
-import { PedidosList } from './components/PedidosList';
-import { CarritoModal } from './components/CarritoModal';
-import AuthButtons from "./components/authButtons.jsx";
-import ProtectedRoute from "./components/ProtectedRoute";
-import {useUserRole} from "./hooks/userRole.js";
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// Importación de componentes y páginas
+import Navbar from './components/Navbar';
+import Catalogo from './pages/CatalogoPage';
+import { AdminDashboard } from './components/AdminDashboard';
+import { OperadorDashboard } from './components/OperadorDashboard';
+
+// Importación del hook de roles (el mismo que usa tu Navbar)
+import { useUserRole } from './hooks/userRole';
+
+// Componente para decidir qué Dashboard mostrar según el rol de MSAL
+function DashboardController() {
+    const { rol, loading } = useUserRole();
+
+    // Mientras MSAL resuelve el token, no decidimos nada todavía
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <p className="text-gray-500">Cargando...</p>
+            </div>
+        );
+    }
+
+    const roleUpper = String(rol || '').toUpperCase();
+
+    if (roleUpper === 'ADMIN') {
+        return <AdminDashboard />;
+    }
+    if (roleUpper === 'OPERADOR') {
+        return <OperadorDashboard />;
+    }
+
+    // Si un cliente o usuario no autorizado intenta entrar a /dashboard, lo devuelve al catálogo
+    return <Navigate to="/" replace />;
+}
 
 function App() {
-    const [carrito, setCarrito] = useState([]);
-    const [mostrarCarrito, setMostrarCarrito] = useState(false);
-    const rol = useUserRole();
-    console.log("Rol Actual:", rol);
-
-    const agregarAlCarrito = (producto) => {
-        setCarrito((prevCarrito) => {
-            const existe = prevCarrito.find((item) => item.id === producto.id);
-            if (existe) {
-                return prevCarrito.map((item) =>
-                    item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item
-                );
-            }
-            return [...prevCarrito, { ...producto, cantidad: 1 }];
-        });
-    };
-
-    const vaciarCarrito = () => setCarrito([]);
-    const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
-
     return (
-        <BrowserRouter>
-            <div>
-                <AuthButtons />
-            </div>
+        <div className="min-h-screen bg-gray-50">
+            {/* Navbar superior persistente en todas las pantallas */}
+            <Navbar />
 
-            <Navbar totalItems={totalItems} abrirCarrito={() => setMostrarCarrito(true)} />
+            {/* Enrutamiento dinámico según la URL que activa el Navbar */}
+            <main>
+                <Routes>
+                    {/* Ruta Principal: Catálogo */}
+                    <Route path="/" element={<Catalogo />} />
 
-            <Routes>
-                <Route path="/" element={<Catalogo agregarAlCarrito={agregarAlCarrito} />} />
-                <Route
-                    path="/pedidos"
-                    element={
-                        <ProtectedRoute>
-                            <PedidosList />
-                        </ProtectedRoute>
-                    }
-                />
-            </Routes>
+                    {/* Ruta Dashboard: Redirige dinámicamente a Admin o a Operador según el rol */}
+                    <Route path="/dashboard" element={<DashboardController />} />
 
-            <CarritoModal
-                show={mostrarCarrito}
-                onHide={() => setMostrarCarrito(false)}
-                carrito={carrito}
-                setCarrito={setCarrito}
-                vaciarCarrito={vaciarCarrito}
-            />
-        </BrowserRouter>
+                    {/* Ruta Pedidos (Para Admin/Operador lleva al Dashboard, para Cliente al Catálogo) */}
+                    <Route path="/pedidos" element={<DashboardController />} />
+
+                    {/* Cualquier otra ruta no encontrada redirige al catálogo */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </main>
+        </div>
     );
 }
 

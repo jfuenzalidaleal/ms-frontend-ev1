@@ -17,21 +17,22 @@ function decodeJwt(token) {
     }
 }
 
+// hooks/userRole.js
 export function useUserRole() {
     const { instance, accounts } = useMsal();
     const [rol, setRol] = useState(null);
+    const [loading, setLoading] = useState(true); // <-- nuevo
 
     useEffect(() => {
         if (accounts.length === 0) {
             setRol(null);
+            setLoading(false);
             return;
         }
 
+        setLoading(true);
         instance
-            .acquireTokenSilent({
-                ...loginRequest,
-                account: accounts[0],
-            })
+            .acquireTokenSilent({ ...loginRequest, account: accounts[0] })
             .then((response) => {
                 const claims = decodeJwt(response.accessToken);
                 const roles = claims?.roles || [];
@@ -44,8 +45,9 @@ export function useUserRole() {
             .catch((error) => {
                 console.error("Error obteniendo access token:", error);
                 setRol(null);
-            });
+            })
+            .finally(() => setLoading(false)); // <-- nuevo
     }, [accounts, instance]);
 
-    return rol;
+    return { rol, loading }; // <-- ahora devuelve objeto
 }
