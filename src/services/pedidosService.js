@@ -1,17 +1,22 @@
 import axiosClient from './axiosClient';
 
-const PEDIDOS_URL = 'http://localhost:8081/api/pedidos';
+const API_URL = import.meta.env.VITE_API_URL;
+const PEDIDOS_URL = `${API_URL}/api/pedidos`;
 
 export const getPedidos = async () => {
     const response = await axiosClient.get(PEDIDOS_URL);
     return response.data;
 };
 
-// Corregido: usa /status y pasa el estado como query param (?status=...)
 export const actualizarEstadoPedido = async (id, nuevoEstado) => {
-    const response = await axiosClient.patch(`${PEDIDOS_URL}/${id}/status`, null, {
-        params: { status: nuevoEstado }
-    });
+    const response = await axiosClient.patch(
+        `${PEDIDOS_URL}/${id}/status`,
+        null,
+        {
+            params: { status: nuevoEstado }
+        }
+    );
+
     return response.data;
 };
 
@@ -20,9 +25,11 @@ export const crearPedido = async (pedidoData) => {
     return response.data;
 };
 
-// Pedidos de un cliente específico (usado en "Mis Pedidos")
 export const getPedidosPorCliente = async (clienteId) => {
-    const response = await axiosClient.get(`${PEDIDOS_URL}/client/${encodeURIComponent(clienteId)}`);
+    const response = await axiosClient.get(
+        `${PEDIDOS_URL}/client/${encodeURIComponent(clienteId)}`
+    );
+
     return response.data;
 };
 

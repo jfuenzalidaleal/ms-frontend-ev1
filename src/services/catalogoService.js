@@ -1,6 +1,7 @@
 import axiosClient from './axiosClient';
 
-const CATALOGO_URL = 'http://localhost:8082/api/catalogo/productos';
+const API_URL = import.meta.env.VITE_API_URL;
+const CATALOGO_URL = `${API_URL}/api/catalogo/productos`;
 
 export const getProductos = async () => {
   const response = await axiosClient.get(CATALOGO_URL);
