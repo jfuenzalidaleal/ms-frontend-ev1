@@ -1,7 +1,7 @@
 import axiosClient from './axiosClient';
 
 const API_URL = import.meta.env.VITE_API_URL;
-const PEDIDOS_URL = `${API_URL}/api/pedidos`;
+const PEDIDOS_URL = `${API_URL}/api/bff/pedidos`;
 
 export const getPedidos = async () => {
     const response = await axiosClient.get(PEDIDOS_URL);
