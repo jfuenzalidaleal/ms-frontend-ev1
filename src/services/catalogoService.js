@@ -1,7 +1,7 @@
 import axiosClient from './axiosClient';
 
 const API_URL = import.meta.env.VITE_API_URL;
-const CATALOGO_URL = `${API_URL}/api/catalogo/productos`;
+const CATALOGO_URL = `${API_URL}/api/bff/productos`;
 
 export const getProductos = async () => {
   const response = await axiosClient.get(CATALOGO_URL);
