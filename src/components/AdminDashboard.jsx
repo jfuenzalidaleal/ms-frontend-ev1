@@ -11,6 +11,7 @@ import {
     eliminarProducto
 } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
+import { ConfirmModal } from './ConfirmModal';
 
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
@@ -51,6 +52,9 @@ export const AdminDashboard = () => {
     // --- Estado del detalle expandible de pedidos ---
     const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
 
+    // --- Estado del modal de confirmación (cancelar pedido / eliminar producto) ---
+    const [confirmacion, setConfirmacion] = useState(null);
+
     useEffect(() => {
         cargarDatos();
     }, []);
@@ -75,7 +79,7 @@ export const AdminDashboard = () => {
         }
     };
 
-    const handleCambiarEstado = async (id, nuevoEstado) => {
+    const ejecutarCambioEstado = async (id, nuevoEstado) => {
         try {
             if (nuevoEstado === 'CANCELADO') {
                 await cancelarPedidoAdmin(id);
@@ -88,6 +92,20 @@ export const AdminDashboard = () => {
             const msj = err.response?.data || err.message;
             alert(`Error al actualizar estado: ${msj}`);
         }
+    };
+
+    const handleCambiarEstado = (id, nuevoEstado) => {
+        // Solo la cancelación pide confirmación; los demás cambios se aplican directo
+        if (nuevoEstado === 'CANCELADO') {
+            setConfirmacion({
+                titulo: '¿Cancelar este pedido?',
+                mensaje: `El pedido #${id} quedará cancelado. Esta acción no se puede deshacer.`,
+                textoConfirmar: 'Sí, cancelar pedido',
+                onConfirm: () => ejecutarCambioEstado(id, nuevoEstado)
+            });
+            return;
+        }
+        ejecutarCambioEstado(id, nuevoEstado);
     };
 
     const getEstadoColor = (estado) => {
@@ -217,10 +235,7 @@ export const AdminDashboard = () => {
         }
     };
 
-    const handleEliminarProducto = async (producto) => {
-        const confirmar = window.confirm(`¿Eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.`);
-        if (!confirmar) return;
-
+    const ejecutarEliminarProducto = async (producto) => {
         try {
             await eliminarProducto(producto.id);
             await cargarDatos();
@@ -228,6 +243,15 @@ export const AdminDashboard = () => {
             const msj = err.response?.data?.message || err.response?.data || err.message;
             alert(`Error al eliminar producto: ${msj}`);
         }
+    };
+
+    const handleEliminarProducto = (producto) => {
+        setConfirmacion({
+            titulo: '¿Eliminar este juego?',
+            mensaje: `"${producto.nombre}" se eliminará del catálogo. Esta acción no se puede deshacer.`,
+            textoConfirmar: 'Sí, eliminar',
+            onConfirm: () => ejecutarEliminarProducto(producto)
+        });
     };
 
     return (
@@ -725,6 +749,17 @@ export const AdminDashboard = () => {
                     productos={productos}
                     onClose={() => setModalPedidoAbierto(false)}
                     onCreated={cargarDatos}
+                />
+            )}
+
+            {/* MODAL DE CONFIRMACIÓN (cancelar pedido / eliminar producto) */}
+            {confirmacion && (
+                <ConfirmModal
+                    titulo={confirmacion.titulo}
+                    mensaje={confirmacion.mensaje}
+                    textoConfirmar={confirmacion.textoConfirmar}
+                    onConfirm={confirmacion.onConfirm}
+                    onClose={() => setConfirmacion(null)}
                 />
             )}
         </div>

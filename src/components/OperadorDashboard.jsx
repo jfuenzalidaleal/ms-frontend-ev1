@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
 import { getProductos, crearProducto } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
+import { ConfirmModal } from './ConfirmModal';
 
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
@@ -41,6 +42,9 @@ export const OperadorDashboard = () => {
     // --- Estado del detalle expandible de pedidos ---
     const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
 
+    // --- Estado del modal de confirmación (cancelar pedido) ---
+    const [confirmacion, setConfirmacion] = useState(null);
+
     useEffect(() => {
         cargarPedidos();
         cargarProductos();
@@ -70,7 +74,7 @@ export const OperadorDashboard = () => {
         }
     };
 
-    const handleCambiarEstado = async (id, nuevoEstado) => {
+    const ejecutarCambioEstado = async (id, nuevoEstado) => {
         try {
             await actualizarEstadoPedido(id, nuevoEstado);
             await cargarPedidos();
@@ -78,6 +82,20 @@ export const OperadorDashboard = () => {
             const msj = err.response?.data || err.message;
             alert(`Error operativo: ${msj}`);
         }
+    };
+
+    const handleCambiarEstado = (id, nuevoEstado) => {
+        // Solo la cancelación pide confirmación; los demás cambios se aplican directo
+        if (nuevoEstado === 'CANCELADO') {
+            setConfirmacion({
+                titulo: '¿Cancelar este pedido?',
+                mensaje: `El pedido #${id} quedará cancelado. Esta acción no se puede deshacer.`,
+                textoConfirmar: 'Sí, cancelar pedido',
+                onConfirm: () => ejecutarCambioEstado(id, nuevoEstado)
+            });
+            return;
+        }
+        ejecutarCambioEstado(id, nuevoEstado);
     };
 
     const getEstadoColor = (estado) => {
@@ -631,6 +649,17 @@ export const OperadorDashboard = () => {
                     productos={productos}
                     onClose={() => setModalPedidoAbierto(false)}
                     onCreated={cargarPedidos}
+                />
+            )}
+
+            {/* MODAL DE CONFIRMACIÓN (cancelar pedido) */}
+            {confirmacion && (
+                <ConfirmModal
+                    titulo={confirmacion.titulo}
+                    mensaje={confirmacion.mensaje}
+                    textoConfirmar={confirmacion.textoConfirmar}
+                    onConfirm={confirmacion.onConfirm}
+                    onClose={() => setConfirmacion(null)}
                 />
             )}
         </div>
