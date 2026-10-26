@@ -8,6 +8,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { OperadorDashboard } from './components/OperadorDashboard';
 import { CarritoModal } from './components/CarritoModal';
 import { MisPedidosPage } from './pages/MisPedidosPage';
+import { SeguirPedidoPage } from './pages/SeguirPedidoPage.jsx';
 
 // Importación del hook de roles (el mismo que usa tu Navbar)
 import { useUserRole } from './hooks/userRole';
@@ -113,6 +114,9 @@ function App() {
 
                     {/* Ruta Pedidos: Admin/Operador ven gestión completa, Cliente ve solo los suyos */}
                     <Route path="/pedidos" element={<PedidosController />} />
+
+                    {/* Ruta pública: seguimiento por código (sin login) */}
+                    <Route path="/seguimiento" element={<SeguirPedidoPage />} />
 
                     {/* Cualquier otra ruta no encontrada redirige al catálogo */}
                     <Route path="*" element={<Navigate to="/" replace />} />

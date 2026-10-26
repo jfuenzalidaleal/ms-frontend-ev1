@@ -1,14 +1,42 @@
 import React, { useState } from 'react';
-import { useMsal } from '@azure/msal-react';
-import { crearPedido } from '../services/pedidosService';
+import { useMsal, useIsAuthenticated } from '@azure/msal-react';
+import { useNavigate } from 'react-router-dom';
+import { crearPedido, crearPedidoInvitado } from '../services/pedidosService';
 
 export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito }) {
     const { accounts } = useMsal();
     const [enviando, setEnviando] = useState(false);
     const [exito, setExito] = useState(false);
     const [error, setError] = useState(null);
+    const [emailInvitado, setEmailInvitado] = useState('');
+    const [codigoSeguimiento, setCodigoSeguimiento] = useState(null);
+    const [copiado, setCopiado] = useState(false);
+    const isAuthenticated = useIsAuthenticated();
+    const navigate = useNavigate();
 
     if (!show) return null;
+
+    const cerrar = () => {
+        setExito(false);
+        setCodigoSeguimiento(null);
+        setCopiado(false);
+        onHide();
+    };
+
+    const copiarCodigo = async () => {
+        try {
+            await navigator.clipboard.writeText(codigoSeguimiento);
+            setCopiado(true);
+        } catch {
+            /* si el navegador no permite copiar, el usuario puede seleccionarlo a mano */
+        }
+    };
+
+    const irASeguimiento = () => {
+        const cod = codigoSeguimiento;
+        cerrar();
+        navigate(isAuthenticated ? '/pedidos' : `/seguimiento?codigo=${encodeURIComponent(cod || '')}`);
+    };
 
     const total = carrito.reduce((acc, item) => {
         const precio = item.precio ?? item.precioUnitario ?? 0;
@@ -56,10 +84,19 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
             return;
         }
 
-        const clienteId = accounts?.[0]?.username;
-        if (!clienteId) {
-            setError("No se pudo identificar tu sesión. Vuelve a iniciar sesión e intenta de nuevo.");
-            return;
+        let clienteId;
+        if (isAuthenticated) {
+            clienteId = accounts?.[0]?.username;
+            if (!clienteId) {
+                setError("No se pudo identificar tu sesión. Vuelve a iniciar sesión e intenta de nuevo.");
+                return;
+            }
+        } else {
+            clienteId = emailInvitado.trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clienteId)) {
+                setError("Ingresa un correo válido para registrar tu pedido.");
+                return;
+            }
         }
 
         setEnviando(true);
@@ -77,13 +114,13 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                 }))
             };
 
-            await crearPedido(payload);
+            const creado = isAuthenticated
+                ? await crearPedido(payload)
+                : await crearPedidoInvitado(payload);
+            setCodigoSeguimiento(creado?.codigoSeguimiento || null);
             setExito(true);
             vaciarCarrito();
-            setTimeout(() => {
-                setExito(false);
-                onHide();
-            }, 2500);
+            if (!isAuthenticated) setEmailInvitado('');
         } catch (err) {
             console.error("Error al procesar el pedido:", err);
             setError("No se pudo procesar la compra. Intenta nuevamente.");
@@ -96,7 +133,7 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
         <div className="fixed inset-0 z-50 overflow-hidden">
             <div
                 className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity"
-                onClick={onHide}
+                onClick={exito ? cerrar : onHide}
             />
 
             <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
@@ -118,7 +155,7 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                         </div>
 
                         <button
-                            onClick={onHide}
+                            onClick={cerrar}
                             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,6 +173,32 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                             </div>
                             <h3 className="text-xl font-bold text-gray-900">¡Pedido Realizado!</h3>
                             <p className="text-sm text-gray-500">Tu orden ha sido registrada exitosamente en el sistema.</p>
+                            {codigoSeguimiento && (
+                                <div className="w-full space-y-2">
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Tu código de seguimiento</p>
+                                    <div className="text-2xl font-black text-red-600 tracking-widest border border-gray-300 rounded-xl py-3 select-all">
+                                        {codigoSeguimiento}
+                                    </div>
+                                    <button
+                                        onClick={copiarCodigo}
+                                        className="text-xs font-bold text-gray-700 hover:text-red-600 underline"
+                                    >
+                                        {copiado ? '¡Copiado!' : 'Copiar código'}
+                                    </button>
+                                    <p className="text-xs text-gray-500">
+                                        Guárdalo: lo necesitas para ver el estado de tu pedido en "Seguir mi Pedido".
+                                    </p>
+                                </div>
+                            )}
+                            <button
+                                onClick={irASeguimiento}
+                                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl transition-all"
+                            >
+                                {isAuthenticated ? 'Ver mis pedidos' : 'Seguir mi pedido'}
+                            </button>
+                            <button onClick={cerrar} className="text-xs font-semibold text-gray-400 hover:text-red-600">
+                                Cerrar
+                            </button>
                         </div>
                     ) : (
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 divide-y divide-gray-100">
@@ -244,6 +307,24 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                                     <span className="text-red-600">{formatearPrecio(total)}</span>
                                 </div>
                             </div>
+
+                            {!isAuthenticated && (
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-bold text-gray-700">
+                                        Correo electrónico (para registrar tu pedido)
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={emailInvitado}
+                                        onChange={(e) => setEmailInvitado(e.target.value)}
+                                        placeholder="tucorreo@ejemplo.com"
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-red-600"
+                                    />
+                                    <p className="text-[11px] text-gray-500">
+                                        Compras sin iniciar sesión. Te daremos un código para seguir tu pedido.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
                                 <button

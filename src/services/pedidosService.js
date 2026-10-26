@@ -1,3 +1,4 @@
+import axios from 'axios';
 import axiosClient from './axiosClient';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -48,6 +49,28 @@ export const getPedidosPorCliente = async (clienteId) => {
 export const getMetricasVentas = async () => {
     const response = await axiosClient.get(
         `${PEDIDOS_URL}/metricas`
+    );
+
+    return response.data;
+};
+
+// ---- Endpoints públicos (sin login): axios simple, sin token ----
+
+// Compra como invitado: clienteId = correo del comprador.
+// Devuelve el pedido con su codigoSeguimiento.
+export const crearPedidoInvitado = async (pedidoData) => {
+    const response = await axios.post(
+        `${PEDIDOS_URL}/invitado`,
+        pedidoData
+    );
+
+    return response.data;
+};
+
+// Seguimiento por código (ej: P360-AB12CD)
+export const getPedidoPorCodigo = async (codigo) => {
+    const response = await axios.get(
+        `${PEDIDOS_URL}/seguimiento/${encodeURIComponent(codigo.trim().toUpperCase())}`
     );
 
     return response.data;

@@ -96,6 +96,20 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
                                 </button>
                             )}
 
+                            {/* Pestaña Seguir mi Pedido (pública: invitados y clientes; oculta para ADMIN/OPERADOR) */}
+                            {!(isAuthenticated && !roleLoading && esAdminOOperador) && (
+                                <button
+                                    onClick={() => navigate("/seguimiento")}
+                                    className={`inline-flex items-center h-full border-b-2 text-sm transition-all px-1 ${
+                                        location.pathname === "/seguimiento"
+                                            ? "border-red-600 text-red-600 font-bold"
+                                            : "border-transparent text-gray-600 hover:text-red-600 hover:border-red-300 font-semibold"
+                                    }`}
+                                >
+                                    Seguir mi Pedido
+                                </button>
+                            )}
+
                         </div>
                     </div>
 
