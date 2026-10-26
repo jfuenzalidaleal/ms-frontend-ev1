@@ -16,7 +16,9 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
     const activeAccount = instance?.getActiveAccount() || (accounts && accounts.length > 0 ? accounts[0] : null);
     const userName = activeAccount?.name || activeAccount?.username?.split("@")[0] || "Usuario";
 
-    const esAdminOOperador = role === "ADMIN" || role === "OPERADOR";
+    const roleUpper = String(role || "").toUpperCase();
+    const esAdminOOperador = roleUpper === "ADMIN" || roleUpper === "OPERADOR";
+    const esCliente = roleUpper === "CLIENTE";
 
     const handleLogin = () => {
         if (instance) instance.loginRedirect(loginRequest);
@@ -77,6 +79,20 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
                                     }`}
                                 >
                                     Dashboard
+                                </button>
+                            )}
+
+                            {/* Pestaña Mis Pedidos (Exclusiva para CLIENTE) */}
+                            {isAuthenticated && !roleLoading && esCliente && (
+                                <button
+                                    onClick={() => navigate("/pedidos")}
+                                    className={`inline-flex items-center h-full border-b-2 text-sm transition-all px-1 ${
+                                        location.pathname === "/pedidos"
+                                            ? "border-red-600 text-red-600 font-bold"
+                                            : "border-transparent text-gray-600 hover:text-red-600 hover:border-red-300 font-semibold"
+                                    }`}
+                                >
+                                    Mis Pedidos
                                 </button>
                             )}
 

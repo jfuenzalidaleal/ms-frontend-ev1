@@ -1,17 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-    getPedidos,
-    actualizarEstadoPedido,
-    cancelarPedidoAdmin
-} from '../services/pedidosService';
-import {
-    getProductos,
-    crearProducto,
-    actualizarProducto,
-    eliminarProducto
-} from '../services/catalogoService';
+import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
+import { getProductos, crearProducto, actualizarProducto, eliminarProducto } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
-import { ConfirmModal } from './ConfirmModal';
 
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
@@ -37,6 +27,7 @@ export const AdminDashboard = () => {
     const [productos, setProductos] = useState([]);
     const [tabPrincipal, setTabPrincipal] = useState('RESUMEN');
     const [filtroEstado, setFiltroEstado] = useState('TODOS');
+    const [busqueda, setBusqueda] = useState('');
     const [cargando, setCargando] = useState(true);
 
     // --- Estado del modal CRUD de productos ---
@@ -51,9 +42,7 @@ export const AdminDashboard = () => {
 
     // --- Estado del detalle expandible de pedidos ---
     const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
-
-    // --- Estado del modal de confirmación (cancelar pedido / eliminar producto) ---
-    const [confirmacion, setConfirmacion] = useState(null);
+    const [bajoStockAbierto, setBajoStockAbierto] = useState(false);
 
     useEffect(() => {
         cargarDatos();
@@ -79,33 +68,14 @@ export const AdminDashboard = () => {
         }
     };
 
-    const ejecutarCambioEstado = async (id, nuevoEstado) => {
+    const handleCambiarEstado = async (id, nuevoEstado) => {
         try {
-            if (nuevoEstado === 'CANCELADO') {
-                await cancelarPedidoAdmin(id);
-            } else {
-                await actualizarEstadoPedido(id, nuevoEstado);
-            }
-
+            await actualizarEstadoPedido(id, nuevoEstado);
             await cargarDatos();
         } catch (err) {
             const msj = err.response?.data || err.message;
             alert(`Error al actualizar estado: ${msj}`);
         }
-    };
-
-    const handleCambiarEstado = (id, nuevoEstado) => {
-        // Solo la cancelación pide confirmación; los demás cambios se aplican directo
-        if (nuevoEstado === 'CANCELADO') {
-            setConfirmacion({
-                titulo: '¿Cancelar este pedido?',
-                mensaje: `El pedido #${id} quedará cancelado. Esta acción no se puede deshacer.`,
-                textoConfirmar: 'Sí, cancelar pedido',
-                onConfirm: () => ejecutarCambioEstado(id, nuevoEstado)
-            });
-            return;
-        }
-        ejecutarCambioEstado(id, nuevoEstado);
     };
 
     const getEstadoColor = (estado) => {
@@ -130,9 +100,12 @@ export const AdminDashboard = () => {
         }
     };
 
-    const pedidosFiltrados = filtroEstado === 'TODOS'
-        ? pedidos
-        : pedidos.filter(p => p.estado === filtroEstado);
+    const terminoBusqueda = busqueda.trim().toLowerCase().replace(/^#/, '');
+    const pedidosFiltrados = pedidos
+        .filter(p => filtroEstado === 'TODOS' || p.estado === filtroEstado)
+        .filter(p => !terminoBusqueda
+            || String(p.id).includes(terminoBusqueda)
+            || String(p.clienteId || '').toLowerCase().includes(terminoBusqueda));
 
     const totalIngresos = pedidos
         .filter(p => p.estado !== 'CANCELADO')
@@ -140,6 +113,12 @@ export const AdminDashboard = () => {
     const volumenPedidos = pedidos.length;
     const ticketPromedio = volumenPedidos > 0 ? Math.round(totalIngresos / volumenPedidos) : 0;
     const valorInventario = productos.reduce((sum, p) => sum + ((p.precio || 0) * (p.stock || 0)), 0);
+
+    // Productos con bajo stock (menos de 5 unidades), los más críticos primero
+    const UMBRAL_BAJO_STOCK = 5;
+    const productosBajoStock = productos
+        .filter(p => (p.stock ?? 0) < UMBRAL_BAJO_STOCK)
+        .sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0));
 
     // Mapa id -> producto, para resolver nombres en el detalle de pedidos (O(1) por ítem)
     const productosPorId = useMemo(() => {
@@ -235,7 +214,10 @@ export const AdminDashboard = () => {
         }
     };
 
-    const ejecutarEliminarProducto = async (producto) => {
+    const handleEliminarProducto = async (producto) => {
+        const confirmar = window.confirm(`¿Eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.`);
+        if (!confirmar) return;
+
         try {
             await eliminarProducto(producto.id);
             await cargarDatos();
@@ -243,15 +225,6 @@ export const AdminDashboard = () => {
             const msj = err.response?.data?.message || err.response?.data || err.message;
             alert(`Error al eliminar producto: ${msj}`);
         }
-    };
-
-    const handleEliminarProducto = (producto) => {
-        setConfirmacion({
-            titulo: '¿Eliminar este juego?',
-            mensaje: `"${producto.nombre}" se eliminará del catálogo. Esta acción no se puede deshacer.`,
-            textoConfirmar: 'Sí, eliminar',
-            onConfirm: () => ejecutarEliminarProducto(producto)
-        });
     };
 
     return (
@@ -301,27 +274,27 @@ export const AdminDashboard = () => {
 
             {/* Tarjetas de Métricas Generales */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '35px' }}>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>INGRESOS TOTALES</span>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>INGRESOS TOTALES</span>
                     <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         ${totalIngresos.toLocaleString('es-CL')}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>VOLUMEN PEDIDOS</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#dc2626', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>VOLUMEN PEDIDOS</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         {volumenPedidos}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>TICKET PROMEDIO</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#2563eb', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>TICKET PROMEDIO</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         ${ticketPromedio.toLocaleString('es-CL')}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>VALOR INVENTARIO</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#16a34a', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>VALOR INVENTARIO</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         ${valorInventario.toLocaleString('es-CL')}
                     </h2>
                 </div>
@@ -371,19 +344,69 @@ export const AdminDashboard = () => {
                         Estado General del Negocio
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-                        <div style={{ border: '1px solid #f1f5f9', padding: '20px', borderRadius: '12px' }}>
-                            <h4 style={{ margin: '0 0 10px 0', color: '#8a92a6', fontSize: '0.85rem' }}>DESGLOSE DE PEDIDOS</h4>
+                        <div style={{ border: '1px solid #cbd5e1', padding: '20px', borderRadius: '12px' }}>
+                            <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', fontSize: '0.85rem', fontWeight: '800' }}>DESGLOSE DE PEDIDOS</h4>
                             <p style={{ margin: '4px 0', fontWeight: '700' }}>Pendientes por procesar: <span style={{ color: '#dc2626' }}>{pedidos.filter(p => p.estado === 'CREADO').length}</span></p>
                             <p style={{ margin: '4px 0', fontWeight: '700' }}>En preparación: <span style={{ color: '#d97706' }}>{pedidos.filter(p => p.estado === 'EN_PREPARACION').length}</span></p>
                             <p style={{ margin: '4px 0', fontWeight: '700' }}>Completados: <span style={{ color: '#16a34a' }}>{pedidos.filter(p => p.estado === 'ENTREGADO').length}</span></p>
                         </div>
-                        <div style={{ border: '1px solid #f1f5f9', padding: '20px', borderRadius: '12px' }}>
-                            <h4 style={{ margin: '0 0 10px 0', color: '#8a92a6', fontSize: '0.85rem' }}>CATÁLOGO DE PRODUCTOS</h4>
+                        <div style={{ border: '1px solid #cbd5e1', padding: '20px', borderRadius: '12px' }}>
+                            <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', fontSize: '0.85rem', fontWeight: '800' }}>CATÁLOGO DE PRODUCTOS</h4>
                             <p style={{ margin: '4px 0', fontWeight: '700' }}>Total ítems registrados: <span>{productos.length}</span></p>
-                            <p style={{ margin: '4px 0', fontWeight: '700' }}>Bajo Stock (&lt; 5 unidades): <span style={{ color: '#dc2626' }}>{productos.filter(p => p.stock < 5).length}</span></p>
+                            <p style={{ margin: '4px 0', fontWeight: '700' }}>Bajo Stock (&lt; {UMBRAL_BAJO_STOCK} unidades): <span style={{ color: '#dc2626' }}>{productosBajoStock.length}</span>
+                                {productosBajoStock.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setBajoStockAbierto(v => !v)}
+                                        style={{
+                                            marginLeft: '12px', padding: '3px 12px', borderRadius: '14px',
+                                            border: '1px solid #e2e8f0', backgroundColor: '#fff', color: '#0f172a',
+                                            fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer'
+                                        }}
+                                    >
+                                        {bajoStockAbierto ? 'Ocultar' : 'Ver'}
+                                    </button>
+                                )}
+                            </p>
+
+                            {productosBajoStock.length === 0 && (
+                                <p style={{ margin: '10px 0 0 0', fontSize: '0.8rem', color: '#16a34a', fontWeight: '600' }}>
+                                    ✓ Todo el stock está en orden
+                                </p>
+                            )}
+
+                            {productosBajoStock.length > 0 && bajoStockAbierto && (
+                                <ul style={{
+                                    listStyle: 'none', margin: '10px 0 0 0', padding: 0,
+                                    maxHeight: '160px', overflowY: 'auto'
+                                }}>
+                                    {productosBajoStock.map(prod => {
+                                        const agotado = (prod.stock ?? 0) <= 0;
+                                        return (
+                                            <li key={prod.id} style={{
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                gap: '10px', padding: '6px 0', borderBottom: '1px solid #f8fafc',
+                                                fontSize: '0.85rem'
+                                            }}>
+                                                <span style={{ color: '#334155', fontWeight: '600', overflowWrap: 'anywhere' }}>
+                                                    {prod.nombre}
+                                                </span>
+                                                <span style={{
+                                                    flex: '0 0 auto', fontWeight: '800', fontSize: '0.75rem',
+                                                    color: agotado ? '#fff' : '#dc2626',
+                                                    backgroundColor: agotado ? '#dc2626' : '#fef2f2',
+                                                    padding: '2px 8px', borderRadius: '10px'
+                                                }}>
+                                                    {agotado ? 'Agotado' : `${prod.stock} u.`}
+                                                </span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
                         </div>
-                        <div style={{ border: '1px solid #f1f5f9', padding: '20px', borderRadius: '12px' }}>
-                            <h4 style={{ margin: '0 0 10px 0', color: '#8a92a6', fontSize: '0.85rem' }}>ACTIVIDAD RECIENTE</h4>
+                        <div style={{ border: '1px solid #cbd5e1', padding: '20px', borderRadius: '12px' }}>
+                            <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', fontSize: '0.85rem', fontWeight: '800' }}>ACTIVIDAD RECIENTE</h4>
                             <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#475569' }}>Último pedido registrado: <strong>#{pedidos[pedidos.length - 1]?.id || 'N/A'}</strong></p>
                             <p style={{ margin: '4px 0', fontSize: '0.9rem', color: '#475569' }}>Sincronización con `ms-catalogo`: <span style={{ color: '#16a34a', fontWeight: '700' }}>Activa (8082)</span></p>
                         </div>
@@ -419,6 +442,29 @@ export const AdminDashboard = () => {
                         })}
                     </div>
 
+                    <div style={{ position: 'relative', maxWidth: '420px', marginBottom: '20px' }}>
+                        <input
+                            type="text"
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            placeholder="Buscar por ID o correo del cliente..."
+                            style={{
+                                width: '100%', boxSizing: 'border-box', padding: '10px 36px 10px 14px',
+                                borderRadius: '20px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none'
+                            }}
+                        />
+                        {busqueda && (
+                            <button
+                                type="button"
+                                onClick={() => setBusqueda('')}
+                                aria-label="Limpiar búsqueda"
+                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8a92a6', fontWeight: '800' }}
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+
                     {cargando ? (
                         <p style={{ color: '#8a92a6' }}>Cargando información...</p>
                     ) : (
@@ -436,7 +482,7 @@ export const AdminDashboard = () => {
                             {pedidosFiltrados.length === 0 ? (
                                 <tr>
                                     <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: '#8a92a6' }}>
-                                        No hay pedidos registrados en este estado.
+                                        {busqueda ? 'No se encontraron pedidos con esa búsqueda.' : 'No hay pedidos registrados en este estado.'}
                                     </td>
                                 </tr>
                             ) : (
@@ -749,17 +795,6 @@ export const AdminDashboard = () => {
                     productos={productos}
                     onClose={() => setModalPedidoAbierto(false)}
                     onCreated={cargarDatos}
-                />
-            )}
-
-            {/* MODAL DE CONFIRMACIÓN (cancelar pedido / eliminar producto) */}
-            {confirmacion && (
-                <ConfirmModal
-                    titulo={confirmacion.titulo}
-                    mensaje={confirmacion.mensaje}
-                    textoConfirmar={confirmacion.textoConfirmar}
-                    onConfirm={confirmacion.onConfirm}
-                    onClose={() => setConfirmacion(null)}
                 />
             )}
         </div>

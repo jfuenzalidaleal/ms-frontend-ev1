@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
 import { getProductos, crearProducto } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
-import { ConfirmModal } from './ConfirmModal';
 
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
@@ -27,6 +26,7 @@ export const OperadorDashboard = () => {
     const [productos, setProductos] = useState([]);
     const [tabPrincipal, setTabPrincipal] = useState('PEDIDOS'); // 'PEDIDOS' | 'CATALOGO'
     const [filtroEstado, setFiltroEstado] = useState('TODOS');
+    const [busqueda, setBusqueda] = useState('');
     const [cargando, setCargando] = useState(true);
     const [cargandoProductos, setCargandoProductos] = useState(true);
 
@@ -41,9 +41,6 @@ export const OperadorDashboard = () => {
 
     // --- Estado del detalle expandible de pedidos ---
     const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
-
-    // --- Estado del modal de confirmación (cancelar pedido) ---
-    const [confirmacion, setConfirmacion] = useState(null);
 
     useEffect(() => {
         cargarPedidos();
@@ -74,7 +71,7 @@ export const OperadorDashboard = () => {
         }
     };
 
-    const ejecutarCambioEstado = async (id, nuevoEstado) => {
+    const handleCambiarEstado = async (id, nuevoEstado) => {
         try {
             await actualizarEstadoPedido(id, nuevoEstado);
             await cargarPedidos();
@@ -82,20 +79,6 @@ export const OperadorDashboard = () => {
             const msj = err.response?.data || err.message;
             alert(`Error operativo: ${msj}`);
         }
-    };
-
-    const handleCambiarEstado = (id, nuevoEstado) => {
-        // Solo la cancelación pide confirmación; los demás cambios se aplican directo
-        if (nuevoEstado === 'CANCELADO') {
-            setConfirmacion({
-                titulo: '¿Cancelar este pedido?',
-                mensaje: `El pedido #${id} quedará cancelado. Esta acción no se puede deshacer.`,
-                textoConfirmar: 'Sí, cancelar pedido',
-                onConfirm: () => ejecutarCambioEstado(id, nuevoEstado)
-            });
-            return;
-        }
-        ejecutarCambioEstado(id, nuevoEstado);
     };
 
     const getEstadoColor = (estado) => {
@@ -120,9 +103,12 @@ export const OperadorDashboard = () => {
         }
     };
 
-    const pedidosFiltrados = filtroEstado === 'TODOS'
-        ? pedidos
-        : pedidos.filter(p => p.estado === filtroEstado);
+    const terminoBusqueda = busqueda.trim().toLowerCase().replace(/^#/, '');
+    const pedidosFiltrados = pedidos
+        .filter(p => filtroEstado === 'TODOS' || p.estado === filtroEstado)
+        .filter(p => !terminoBusqueda
+            || String(p.id).includes(terminoBusqueda)
+            || String(p.clienteId || '').toLowerCase().includes(terminoBusqueda));
 
     // Contadores Operativos (Métricas de Logística)
     const pendAceptar = pedidos.filter(p => p.estado === 'CREADO').length;
@@ -252,27 +238,27 @@ export const OperadorDashboard = () => {
 
             {/* Tarjetas de Métricas Operativas */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '35px' }}>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>POR ACEPTAR</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#dc2626', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>POR ACEPTAR</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         {pendAceptar}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>EN PREPARACIÓN</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#d97706', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>EN PREPARACIÓN</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         {enPreparacion}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>EN CAMINO</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0284c7', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>EN CAMINO</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         {enCamino}
                     </h2>
                 </div>
-                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#8a92a6', letterSpacing: '0.5px' }}>ENTREGADOS</span>
-                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#16a34a', margin: '8px 0 0' }}>
+                <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#dc2626', letterSpacing: '0.5px' }}>ENTREGADOS</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#0f172a', margin: '8px 0 0' }}>
                         {entregados}
                     </h2>
                 </div>
@@ -332,6 +318,29 @@ export const OperadorDashboard = () => {
                         })}
                     </div>
 
+                    <div style={{ position: 'relative', maxWidth: '420px', marginBottom: '20px' }}>
+                        <input
+                            type="text"
+                            value={busqueda}
+                            onChange={(e) => setBusqueda(e.target.value)}
+                            placeholder="Buscar por ID o correo del cliente..."
+                            style={{
+                                width: '100%', boxSizing: 'border-box', padding: '10px 36px 10px 14px',
+                                borderRadius: '20px', border: '1px solid #cbd5e1', fontSize: '0.85rem', outline: 'none'
+                            }}
+                        />
+                        {busqueda && (
+                            <button
+                                type="button"
+                                onClick={() => setBusqueda('')}
+                                aria-label="Limpiar búsqueda"
+                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8a92a6', fontWeight: '800' }}
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+
                     {cargando ? (
                         <p style={{ color: '#8a92a6' }}>Cargando cola operativa...</p>
                     ) : (
@@ -349,7 +358,7 @@ export const OperadorDashboard = () => {
                             {pedidosFiltrados.length === 0 ? (
                                 <tr>
                                     <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: '#8a92a6' }}>
-                                        No hay pedidos registrados en este estado.
+                                        {busqueda ? 'No se encontraron pedidos con esa búsqueda.' : 'No hay pedidos registrados en este estado.'}
                                     </td>
                                 </tr>
                             ) : (
@@ -649,17 +658,6 @@ export const OperadorDashboard = () => {
                     productos={productos}
                     onClose={() => setModalPedidoAbierto(false)}
                     onCreated={cargarPedidos}
-                />
-            )}
-
-            {/* MODAL DE CONFIRMACIÓN (cancelar pedido) */}
-            {confirmacion && (
-                <ConfirmModal
-                    titulo={confirmacion.titulo}
-                    mensaje={confirmacion.mensaje}
-                    textoConfirmar={confirmacion.textoConfirmar}
-                    onConfirm={confirmacion.onConfirm}
-                    onClose={() => setConfirmacion(null)}
                 />
             )}
         </div>

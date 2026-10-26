@@ -127,7 +127,8 @@ export function CrearPedidoModal({ productos, onClose, onCreated }) {
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     backgroundColor: '#fff', borderRadius: '16px', padding: '30px',
-                    width: '520px', maxWidth: '92%', maxHeight: '85vh', overflowY: 'auto',
+                    width: '680px', maxWidth: '94%', maxHeight: '88vh', overflowY: 'auto', overflowX: 'hidden',
+                    boxSizing: 'border-box',
                     boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
                 }}
             >
@@ -155,11 +156,11 @@ export function CrearPedidoModal({ productos, onClose, onCreated }) {
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>
                             Agregar producto
                         </label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <select
                                 value={productoSeleccionado}
                                 onChange={(e) => setProductoSeleccionado(e.target.value)}
-                                style={{ flex: 3, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff' }}
+                                style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#fff', boxSizing: 'border-box' }}
                             >
                                 <option value="">Selecciona un producto...</option>
                                 {productos.map(p => (
@@ -173,12 +174,13 @@ export function CrearPedidoModal({ productos, onClose, onCreated }) {
                                 min="1"
                                 value={cantidadSeleccionada}
                                 onChange={(e) => setCantidadSeleccionada(e.target.value)}
-                                style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', boxSizing: 'border-box' }}
+                                style={{ flex: '0 0 90px', width: '90px', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', boxSizing: 'border-box' }}
                             />
                             <button
                                 type="button"
                                 onClick={agregarItem}
                                 style={{
+                                    flex: '0 0 auto', whiteSpace: 'nowrap',
                                     padding: '10px 16px', borderRadius: '8px', border: 'none',
                                     backgroundColor: '#0f172a', color: '#fff', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer'
                                 }}
