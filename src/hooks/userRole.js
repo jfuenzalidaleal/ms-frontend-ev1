@@ -17,11 +17,10 @@ function decodeJwt(token) {
     }
 }
 
-// hooks/userRole.js
 export function useUserRole() {
     const { instance, accounts } = useMsal();
     const [rol, setRol] = useState(null);
-    const [loading, setLoading] = useState(true); // <-- nuevo
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (accounts.length === 0) {
@@ -32,22 +31,24 @@ export function useUserRole() {
 
         setLoading(true);
         instance
-            .acquireTokenSilent({ ...loginRequest, account: accounts[0] })
+            .acquireTokenSilent({
+                ...loginRequest,
+                account: accounts[0],
+            })
             .then((response) => {
                 const claims = decodeJwt(response.accessToken);
                 const roles = claims?.roles || [];
 
                 if (roles.includes("ROLE_ADMIN")) setRol("ADMIN");
                 else if (roles.includes("ROLE_OPERADOR")) setRol("OPERADOR");
-                else if (roles.includes("ROLE_CLIENTE")) setRol("CLIENTE");
-                else setRol(null);
+                else setRol("CLIENTE"); // ROLE_CLIENTE o usuario recién registrado sin rol asignado
             })
             .catch((error) => {
                 console.error("Error obteniendo access token:", error);
                 setRol(null);
             })
-            .finally(() => setLoading(false)); // <-- nuevo
+            .finally(() => setLoading(false));
     }, [accounts, instance]);
 
-    return { rol, loading }; // <-- ahora devuelve objeto
+    return { rol, loading };
 }

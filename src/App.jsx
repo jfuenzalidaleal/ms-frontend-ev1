@@ -8,7 +8,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { OperadorDashboard } from './components/OperadorDashboard';
 import { CarritoModal } from './components/CarritoModal';
 import { MisPedidosPage } from './pages/MisPedidosPage';
-import { SeguirPedidoPage } from './pages/SeguirPedidoPage.jsx';
+import { SeguirPedidoPage } from './pages/SeguirPedidoPage';
 
 // Importación del hook de roles (el mismo que usa tu Navbar)
 import { useUserRole } from './hooks/userRole';

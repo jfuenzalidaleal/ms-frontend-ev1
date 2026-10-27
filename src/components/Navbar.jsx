@@ -1,14 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
 import { useUserRole } from "../hooks/userRole";
+import logo from "../assets/logo-pedidos670.png";
 
 export function Navbar({ cartCount = 0, onOpenCart }) {
     const isAuthenticated = useIsAuthenticated();
     const { instance, accounts } = useMsal();
     const { rol: role, loading: roleLoading } = useUserRole(); // <-- actualizado
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isLoginOpen, setIsLoginOpen] = useState(false);
+    const loginRef = useRef(null);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -20,9 +23,29 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
     const esAdminOOperador = roleUpper === "ADMIN" || roleUpper === "OPERADOR";
     const esCliente = roleUpper === "CLIENTE";
 
-    const handleLogin = () => {
+    // Abre/cierra la ventanita de "Iniciar sesión / Crear cuenta"
+    const handleLogin = () => setIsLoginOpen((v) => !v);
+
+    // Ambas opciones usan MSAL; el registro se elige en la pantalla de Microsoft ("Cree una")
+    const iniciarSesion = () => {
+        setIsLoginOpen(false);
         if (instance) instance.loginRedirect(loginRequest);
     };
+
+    // Cierra la ventanita al hacer click fuera de ella o con Escape
+    useEffect(() => {
+        if (!isLoginOpen) return;
+        const onClickFuera = (e) => {
+            if (loginRef.current && !loginRef.current.contains(e.target)) setIsLoginOpen(false);
+        };
+        const onKey = (e) => { if (e.key === "Escape") setIsLoginOpen(false); };
+        document.addEventListener("mousedown", onClickFuera);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onClickFuera);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [isLoginOpen]);
 
     const handleLogout = () => {
         if (instance) instance.logoutRedirect({ postLogoutRedirectUri: "/" });
@@ -167,15 +190,49 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
                                 )}
                             </div>
                         ) : (
-                            <button
-                                onClick={handleLogin}
-                                className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded-lg text-sm transition-all shadow-md shadow-red-600/20 flex items-center space-x-2 active:scale-95"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                </svg>
-                                <span>Iniciar Sesión</span>
-                            </button>
+                            <div className="relative" ref={loginRef}>
+                                <button
+                                    onClick={handleLogin}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2 rounded-lg text-sm transition-all shadow-md shadow-red-600/20 flex items-center space-x-2 active:scale-95"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                    </svg>
+                                    <span>Iniciar Sesión</span>
+                                </button>
+
+                                {isLoginOpen && (
+                                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl p-5 border border-gray-200 z-50 text-center">
+                                        <img
+                                            src={logo}
+                                            alt="Pedidos 360"
+                                            className="w-20 h-20 object-contain mx-auto"
+                                        />
+                                        <h3 className="mt-1 text-base font-extrabold text-gray-900">
+                                            Bienvenido a <span className="text-red-600">Pedidos 360</span>
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-1 mb-4">
+                                            Inicia sesión para ver tus pedidos o crea tu cuenta.
+                                        </p>
+
+                                        <button
+                                            onClick={iniciarSesion}
+                                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm border-2 border-red-600 transition-all shadow-md shadow-red-600/20 active:scale-95"
+                                        >
+                                            Iniciar sesión
+                                        </button>
+                                        <button
+                                            onClick={iniciarSesion}
+                                            className="w-full mt-2 bg-white hover:bg-red-50 text-red-600 font-bold py-2.5 rounded-lg text-sm border-2 border-red-600 transition-all active:scale-95"
+                                        >
+                                            Crear cuenta
+                                        </button>
+                                        <p className="text-[11px] text-gray-500 mt-3">
+                                            ¿Eres nuevo? En la pantalla de Microsoft elige <strong>"Cree una"</strong>.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
