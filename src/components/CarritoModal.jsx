@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useNavigate } from 'react-router-dom';
 import { crearPedido, crearPedidoInvitado } from '../services/pedidosService';
+import { PagoModal } from './PagoModal';
 
 export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito }) {
     const { accounts } = useMsal();
     const [enviando, setEnviando] = useState(false);
+    const [mostrarPago, setMostrarPago] = useState(false);
     const [exito, setExito] = useState(false);
     const [error, setError] = useState(null);
     const [emailInvitado, setEmailInvitado] = useState('');
@@ -17,6 +19,7 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
     if (!show) return null;
 
     const cerrar = () => {
+        setMostrarPago(false);
         setExito(false);
         setCodigoSeguimiento(null);
         setCopiado(false);
@@ -74,29 +77,51 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
         setCarrito((prev) => prev.filter((item) => item.id !== id));
     };
 
-    const handleCheckout = async () => {
-        if (carrito.length === 0) return;
+    // Devuelve el clienteId (sesión o correo del invitado) o un mensaje de error
+    const obtenerClienteId = () => {
+        if (isAuthenticated) {
+            const id = accounts?.[0]?.username;
+            if (!id) {
+                return { error: "No se pudo identificar tu sesión. Vuelve a iniciar sesión e intenta de nuevo." };
+            }
+            return { clienteId: id };
+        }
+        const email = emailInvitado.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return { error: "Ingresa un correo válido para registrar tu pedido." };
+        }
+        return { clienteId: email };
+    };
 
-        // Validación final de stock antes de confirmar la compra
+    // Paso 1: valida el carrito y abre la ventana de pago
+    const handleCheckout = () => {
+        if (carrito.length === 0) return;
+        setError(null);
+
+        // Validación final de stock antes de pagar
         const itemSinStock = carrito.find((item) => item.cantidad > (item.stock ?? 0));
         if (itemSinStock) {
             setError(`No hay suficiente stock de "${itemSinStock.nombre}". Disponible: ${itemSinStock.stock ?? 0} unidad(es).`);
             return;
         }
 
-        let clienteId;
-        if (isAuthenticated) {
-            clienteId = accounts?.[0]?.username;
-            if (!clienteId) {
-                setError("No se pudo identificar tu sesión. Vuelve a iniciar sesión e intenta de nuevo.");
-                return;
-            }
-        } else {
-            clienteId = emailInvitado.trim().toLowerCase();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clienteId)) {
-                setError("Ingresa un correo válido para registrar tu pedido.");
-                return;
-            }
+        const { error: errorCliente } = obtenerClienteId();
+        if (errorCliente) {
+            setError(errorCliente);
+            return;
+        }
+
+        setMostrarPago(true);
+    };
+
+    // Paso 2: el pago fue aprobado, se crea el pedido
+    const confirmarPedido = async () => {
+        setMostrarPago(false);
+
+        const { clienteId, error: errorCliente } = obtenerClienteId();
+        if (errorCliente) {
+            setError(errorCliente);
+            return;
         }
 
         setEnviando(true);
@@ -123,7 +148,10 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
             if (!isAuthenticated) setEmailInvitado('');
         } catch (err) {
             console.error("Error al procesar el pedido:", err);
-            setError("No se pudo procesar la compra. Intenta nuevamente.");
+            const detalle = typeof err.response?.data === 'string' ? err.response.data : null;
+            setError(detalle
+                ? `El pago fue aprobado, pero el pedido no se pudo crear: ${detalle}`
+                : "El pago fue aprobado, pero no se pudo crear el pedido. Intenta nuevamente.");
         } finally {
             setEnviando(false);
         }
@@ -357,6 +385,14 @@ export function CarritoModal({ show, onHide, carrito, setCarrito, vaciarCarrito 
                     )}
                 </div>
             </div>
+
+            {mostrarPago && (
+                <PagoModal
+                    total={total}
+                    onClose={() => setMostrarPago(false)}
+                    onApproved={confirmarPedido}
+                />
+            )}
         </div>
     );
 }

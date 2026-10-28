@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Importación de componentes y páginas
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Catalogo from './pages/CatalogoPage';
 import { AdminDashboard } from './components/AdminDashboard';
 import { OperadorDashboard } from './components/OperadorDashboard';
@@ -99,12 +100,12 @@ function App() {
     const cartCount = carrito.reduce((sum, item) => sum + item.cantidad, 0);
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Navbar superior persistente en todas las pantallas */}
             <Navbar cartCount={cartCount} onOpenCart={() => setCarritoAbierto(true)} />
 
             {/* Enrutamiento dinámico según la URL que activa el Navbar */}
-            <main>
+            <main className="flex-1">
                 <Routes>
                     {/* Ruta Principal: Catálogo */}
                     <Route path="/" element={<Catalogo agregarAlCarrito={agregarAlCarrito} />} />
@@ -122,6 +123,9 @@ function App() {
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
+
+            {/* Footer persistente en todas las pantallas */}
+            <Footer />
 
             {/* Modal del carrito, disponible en toda la app */}
             <CarritoModal

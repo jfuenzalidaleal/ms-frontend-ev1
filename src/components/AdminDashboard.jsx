@@ -3,6 +3,16 @@ import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
 import { getProductos, crearProducto, actualizarProducto, eliminarProducto } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
 
+
+// Convierte el error de axios en un texto legible (evita mostrar "[object Object]")
+const mensajeError = (err) => {
+    const d = err.response?.data;
+    if (typeof d === 'string' && d) return d;
+    if (d?.message) return d.message;
+    if (d?.error) return `${d.error}${err.response?.status ? ` (${err.response.status})` : ''}`;
+    return err.message;
+};
+
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
     { id: 'CREADO', label: 'Creados' },
@@ -44,6 +54,11 @@ export const AdminDashboard = () => {
     const [pedidoExpandidoId, setPedidoExpandidoId] = useState(null);
     const [bajoStockAbierto, setBajoStockAbierto] = useState(false);
 
+    // Confirmación de borrado (modal propio en vez de window.confirm)
+    const [productoAEliminar, setProductoAEliminar] = useState(null);
+    const [eliminando, setEliminando] = useState(false);
+    const [errorEliminar, setErrorEliminar] = useState(null);
+
     useEffect(() => {
         cargarDatos();
     }, []);
@@ -73,7 +88,7 @@ export const AdminDashboard = () => {
             await actualizarEstadoPedido(id, nuevoEstado);
             await cargarDatos();
         } catch (err) {
-            const msj = err.response?.data || err.message;
+            const msj = mensajeError(err);
             alert(`Error al actualizar estado: ${msj}`);
         }
     };
@@ -207,23 +222,37 @@ export const AdminDashboard = () => {
             await cargarDatos();
             cerrarModal();
         } catch (err) {
-            const msj = err.response?.data?.message || err.response?.data || err.message;
+            const msj = mensajeError(err);
             setErrorForm(`Error al guardar: ${msj}`);
         } finally {
             setGuardando(false);
         }
     };
 
-    const handleEliminarProducto = async (producto) => {
-        const confirmar = window.confirm(`¿Eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.`);
-        if (!confirmar) return;
+    // Abre el modal de confirmación
+    const handleEliminarProducto = (producto) => {
+        setErrorEliminar(null);
+        setProductoAEliminar(producto);
+    };
 
+    const cancelarEliminacion = () => {
+        if (eliminando) return;
+        setProductoAEliminar(null);
+        setErrorEliminar(null);
+    };
+
+    const confirmarEliminacion = async () => {
+        if (!productoAEliminar) return;
         try {
-            await eliminarProducto(producto.id);
+            setEliminando(true);
+            setErrorEliminar(null);
+            await eliminarProducto(productoAEliminar.id);
+            setProductoAEliminar(null);
             await cargarDatos();
         } catch (err) {
-            const msj = err.response?.data?.message || err.response?.data || err.message;
-            alert(`Error al eliminar producto: ${msj}`);
+            setErrorEliminar(`No se pudo eliminar el producto: ${mensajeError(err)}`);
+        } finally {
+            setEliminando(false);
         }
     };
 
@@ -785,6 +814,77 @@ export const AdminDashboard = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DE CONFIRMACIÓN PARA ELIMINAR PRODUCTO */}
+            {productoAEliminar && (
+                <div
+                    onClick={cancelarEliminacion}
+                    style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.5)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', zIndex: 110
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            backgroundColor: '#fff', borderRadius: '16px', padding: '30px',
+                            width: '400px', maxWidth: '90%', boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                            textAlign: 'center', boxSizing: 'border-box'
+                        }}
+                    >
+                        <div style={{
+                            width: '56px', height: '56px', borderRadius: '50%', backgroundColor: '#fef2f2',
+                            color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 16px', fontSize: '1.6rem', fontWeight: '800'
+                        }}>
+                            !
+                        </div>
+                        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem', fontWeight: '800', color: '#0f172a' }}>
+                            ¿Eliminar producto?
+                        </h3>
+                        <p style={{ margin: '0 0 6px 0', color: '#334155', fontWeight: '700', overflowWrap: 'anywhere' }}>
+                            {productoAEliminar.nombre}
+                        </p>
+                        <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '0.85rem' }}>
+                            Esta acción no se puede deshacer.
+                        </p>
+
+                        {errorEliminar && (
+                            <p style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: '600', margin: '0 0 16px 0' }}>
+                                {errorEliminar}
+                            </p>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                            <button
+                                type="button"
+                                onClick={cancelarEliminacion}
+                                disabled={eliminando}
+                                style={{
+                                    padding: '10px 22px', borderRadius: '20px', border: '1px solid #cbd5e1',
+                                    backgroundColor: '#fff', fontWeight: '700', fontSize: '0.85rem',
+                                    cursor: eliminando ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmarEliminacion}
+                                disabled={eliminando}
+                                style={{
+                                    padding: '10px 22px', borderRadius: '20px', border: 'none',
+                                    backgroundColor: '#dc2626', color: '#fff', fontWeight: '700', fontSize: '0.85rem',
+                                    cursor: eliminando ? 'not-allowed' : 'pointer', opacity: eliminando ? 0.7 : 1
+                                }}
+                            >
+                                {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

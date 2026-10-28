@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { crearPedido } from '../services/pedidosService';
 
+
+// Convierte el error de axios en un texto legible (evita mostrar "[object Object]")
+const mensajeError = (err) => {
+    const d = err.response?.data;
+    if (typeof d === 'string' && d) return d;
+    if (d?.message) return d.message;
+    if (d?.error) return `${d.error}${err.response?.status ? ` (${err.response.status})` : ''}`;
+    return err.message;
+};
+
 export function CrearPedidoModal({ productos, onClose, onCreated }) {
     const [clienteId, setClienteId] = useState('');
     const [itemsPedido, setItemsPedido] = useState([]); // [{productoId, nombre, precioUnitario, cantidad}]
@@ -107,7 +117,7 @@ export function CrearPedidoModal({ productos, onClose, onCreated }) {
             onCreated();
             onClose();
         } catch (err) {
-            const msj = err.response?.data?.message || err.response?.data || err.message;
+            const msj = mensajeError(err);
             setErrorForm(`Error al crear pedido: ${msj}`);
         } finally {
             setGuardando(false);

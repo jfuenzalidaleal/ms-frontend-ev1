@@ -7,6 +7,15 @@ export function Catalogo({ agregarAlCarrito }) {
     const [error, setError] = useState(null);
     const [busqueda, setBusqueda] = useState("");
     const [formatoSeleccionado, setFormatoSeleccionado] = useState("TODOS");
+    const [vista, setVista] = useState(() => {
+        try { return localStorage.getItem("catalogoVista") === "lista" ? "lista" : "cuadricula"; }
+        catch { return "cuadricula"; }
+    });
+
+    const cambiarVista = (v) => {
+        setVista(v);
+        try { localStorage.setItem("catalogoVista", v); } catch { /* sin almacenamiento */ }
+    };
 
     const cargarCatalogo = async () => {
         try {
@@ -70,10 +79,10 @@ export function Catalogo({ agregarAlCarrito }) {
                 </div>
             )}
 
-            {/* Filtros */}
-            {formatos.length > 1 && (
+            {/* Filtros + selector de vista */}
+            <div className="flex items-center justify-between gap-4 px-1 sm:px-4">
                 <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none">
-                    {formatos.map((fmt) => (
+                    {formatos.length > 1 && formatos.map((fmt) => (
                         <button
                             key={fmt}
                             onClick={() => setFormatoSeleccionado(fmt)}
@@ -87,40 +96,109 @@ export function Catalogo({ agregarAlCarrito }) {
                         </button>
                     ))}
                 </div>
-            )}
 
-            {/* Grid de Productos */}
+                <div className="flex shrink-0 gap-1 rounded-xl border border-gray-200 bg-white p-1.5 mb-2 mr-1 sm:mr-3" role="group" aria-label="Tipo de vista">
+                    <button
+                        onClick={() => cambiarVista("cuadricula")}
+                        aria-pressed={vista === "cuadricula"}
+                        title="Ver en cuadrícula"
+                        className={`p-2 rounded-lg transition-all ${vista === "cuadricula" ? "bg-red-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    </button>
+                    <button
+                        onClick={() => cambiarVista("lista")}
+                        aria-pressed={vista === "lista"}
+                        title="Ver en lista"
+                        className={`p-2 rounded-lg transition-all ${vista === "lista" ? "bg-red-600 text-white" : "text-gray-500 hover:bg-gray-100"}`}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* Productos: cuadrícula o lista (sin cards: cada producto va separado por una línea corta) */}
             {loading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10">
                     {[1, 2, 3, 4].map((n) => (
-                        <div key={n} className="bg-white rounded-2xl p-4 border border-gray-100 animate-pulse space-y-4">
+                        <div key={n} className="animate-pulse space-y-4">
                             <div className="w-full h-48 bg-gray-200 rounded-xl" />
                             <div className="h-4 bg-gray-200 rounded w-3/4" />
+                            <div className="mx-auto h-px w-2/3 bg-gray-200" />
                         </div>
                     ))}
                 </div>
             ) : productosFiltrados.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="text-center py-16">
                     <p className="text-gray-500 font-semibold">No hay videojuegos para mostrar.</p>
                 </div>
+            ) : vista === "lista" ? (
+                <div className="flex flex-col max-w-3xl mx-auto">
+                    {productosFiltrados.map((juego, i) => {
+                        const imagen = juego.imagen || juego.imagenUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80";
+                        const etiqueta = juego.formato || juego.categoria;
+                        const sinStock = juego.stock <= 0;
+
+                        return (
+                            <div key={juego.id}>
+                                <div className="flex items-center gap-4 sm:gap-8 py-3 px-4 sm:px-8">
+                                    <div className="w-16 h-16 sm:w-20 sm:h-16 shrink-0 bg-gray-100 overflow-hidden rounded-xl">
+                                        <img src={imagen} alt={juego.nombre} className="w-full h-full object-cover" />
+                                    </div>
+
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                        <h3 className="font-bold text-gray-900 text-base truncate">{juego.nombre}</h3>
+                                        {juego.descripcion && (
+                                            <p className="hidden sm:block text-sm text-gray-500 line-clamp-1">{juego.descripcion}</p>
+                                        )}
+                                        <div className="flex items-center gap-3">
+                                            {etiqueta && (
+                                                <span className="inline-block text-xs font-bold px-2.5 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-gray-700">
+                                                    {etiqueta}
+                                                </span>
+                                            )}
+                                            <span className={`text-xs font-semibold ${sinStock ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                                                Stock: {juego.stock ?? 0} u.
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-8 shrink-0">
+                                        <p className="text-xl sm:text-2xl font-black text-gray-900">{formatearPrecio(juego.precio)}</p>
+                                        <button
+                                            onClick={() => agregarAlCarrito && agregarAlCarrito(juego)}
+                                            disabled={sinStock}
+                                            className={`font-bold py-2 px-4 rounded-xl transition-all shadow-md whitespace-nowrap text-sm ${
+                                                sinStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 text-white'
+                                            }`}
+                                        >
+                                            {sinStock ? 'Agotado' : 'Agregar'}
+                                        </button>
+                                    </div>
+                                </div>
+                                {i < productosFiltrados.length - 1 && <div className="mx-auto h-px w-2/3 bg-gray-300" />}
+                            </div>
+                        );
+                    })}
+                </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-10">
                     {productosFiltrados.map((juego) => {
                         const imagen = juego.imagen || juego.imagenUrl || "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80";
                         const etiqueta = juego.formato || juego.categoria;
                         const sinStock = juego.stock <= 0;
 
                         return (
-                            <div key={juego.id} className="group bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden">
+                            <div key={juego.id} className="group flex flex-col justify-between">
                                 <div>
-                                    <div className="w-full h-52 bg-gray-100 overflow-hidden relative">
+                                    <div className="w-full h-52 bg-gray-100 overflow-hidden rounded-xl">
                                         <img src={imagen} alt={juego.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                                     </div>
 
-                                    <div className="p-5 space-y-2">
+                                    <div className="pt-4 space-y-2">
                                         <h3 className="font-bold text-gray-900 text-base line-clamp-1">{juego.nombre}</h3>
                                         {etiqueta && (
-                                            <span className="inline-block text-xs font-bold px-2.5 py-0.5 rounded-md border bg-gray-50 text-gray-700">
+                                            <span className="inline-block text-xs font-bold px-2.5 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-gray-700">
                                                 {etiqueta}
                                             </span>
                                         )}
@@ -133,17 +211,20 @@ export function Catalogo({ agregarAlCarrito }) {
                                     </div>
                                 </div>
 
-                                <div className="p-5 pt-0">
+                                <div className="pt-4">
                                     <button
                                         onClick={() => agregarAlCarrito && agregarAlCarrito(juego)}
                                         disabled={sinStock}
                                         className={`w-full font-bold py-2.5 px-4 rounded-xl transition-all shadow-md ${
-                                            sinStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'
+                                            sinStock ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 text-white'
                                         }`}
                                     >
                                         {sinStock ? 'Agotado' : 'Agregar al Carrito'}
                                     </button>
                                 </div>
+
+                                {/* Línea separadora corta (no ocupa todo el ancho) */}
+                                <div className="mt-8 mx-auto h-px w-2/3 bg-gray-300" />
                             </div>
                         );
                     })}

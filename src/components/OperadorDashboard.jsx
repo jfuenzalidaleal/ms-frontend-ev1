@@ -3,6 +3,16 @@ import { getPedidos, actualizarEstadoPedido } from '../services/pedidosService';
 import { getProductos, crearProducto } from '../services/catalogoService';
 import { CrearPedidoModal } from './CrearPedidoModal';
 
+
+// Convierte el error de axios en un texto legible (evita mostrar "[object Object]")
+const mensajeError = (err) => {
+    const d = err.response?.data;
+    if (typeof d === 'string' && d) return d;
+    if (d?.message) return d.message;
+    if (d?.error) return `${d.error}${err.response?.status ? ` (${err.response.status})` : ''}`;
+    return err.message;
+};
+
 const SUB_TAB_ESTADOS = [
     { id: 'TODOS', label: 'Todos' },
     { id: 'CREADO', label: 'Creados' },
@@ -76,7 +86,7 @@ export const OperadorDashboard = () => {
             await actualizarEstadoPedido(id, nuevoEstado);
             await cargarPedidos();
         } catch (err) {
-            const msj = err.response?.data || err.message;
+            const msj = mensajeError(err);
             alert(`Error operativo: ${msj}`);
         }
     };
@@ -184,7 +194,7 @@ export const OperadorDashboard = () => {
             await cargarProductos();
             cerrarModal();
         } catch (err) {
-            const msj = err.response?.data?.message || err.response?.data || err.message;
+            const msj = mensajeError(err);
             setErrorForm(`Error al guardar: ${msj}`);
         } finally {
             setGuardando(false);

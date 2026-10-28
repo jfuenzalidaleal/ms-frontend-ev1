@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { getPedidosPorCliente } from '../services/pedidosService';
 import { getProductos } from '../services/catalogoService';
-import { PedidoCard, formatearPrecio } from '../components/PedidoCard';
+import { PedidoCard } from '../components/PedidoCard';
 
 export function MisPedidosPage() {
     const { accounts } = useMsal();
@@ -46,9 +46,6 @@ export function MisPedidosPage() {
 
     const nombreProducto = (id) => productosPorId[id]?.nombre || `Producto #${id}`;
 
-    const enCurso = pedidos.filter(p => !['ENTREGADO', 'CANCELADO'].includes(p.estado)).length;
-    const entregados = pedidos.filter(p => p.estado === 'ENTREGADO').length;
-    const totalGastado = pedidos.filter(p => p.estado !== 'CANCELADO').reduce((s, p) => s + Number(p.total || 0), 0);
 
     const pedidosFiltrados = useMemo(() => {
         if (filtro === 'TODOS') return pedidos;
@@ -63,9 +60,6 @@ export function MisPedidosPage() {
         { id: 'CANCELADO', label: 'Cancelados' }
     ];
 
-    const card = { border: '1px solid #cbd5e1', padding: '20px', borderRadius: '12px', backgroundColor: '#fff' };
-    const tituloCard = { margin: '0 0 10px 0', color: '#dc2626', fontSize: '0.85rem', fontWeight: '800', letterSpacing: '0.03em' };
-    const valorCard = { margin: 0, fontWeight: '800', fontSize: '1.6rem', color: '#0f172a' };
 
     if (!clienteId) {
         return (
@@ -82,26 +76,6 @@ export function MisPedidosPage() {
                 <p style={{ color: '#8a92a6', margin: '6px 0 0', fontSize: '0.95rem' }}>
                     Historial y estado de tus compras
                 </p>
-            </div>
-
-            {/* Resumen */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-                <div style={card}>
-                    <h4 style={tituloCard}>PEDIDOS REALIZADOS</h4>
-                    <p style={valorCard}>{pedidos.length}</p>
-                </div>
-                <div style={card}>
-                    <h4 style={tituloCard}>EN CURSO</h4>
-                    <p style={valorCard}>{enCurso}</p>
-                </div>
-                <div style={card}>
-                    <h4 style={tituloCard}>ENTREGADOS</h4>
-                    <p style={valorCard}>{entregados}</p>
-                </div>
-                <div style={card}>
-                    <h4 style={tituloCard}>TOTAL COMPRADO</h4>
-                    <p style={valorCard}>{formatearPrecio(totalGastado)}</p>
-                </div>
             </div>
 
             <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '30px', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>

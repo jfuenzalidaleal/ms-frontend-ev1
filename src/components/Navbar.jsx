@@ -74,7 +74,7 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
                             <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                             </svg>
-                            <span className="tracking-tight">Pedidos 360</span>
+                            <span className="tracking-tight">Pedidos 670</span>
                         </button>
 
                         {/* Navegación con Subrayado */}
@@ -205,7 +205,7 @@ export function Navbar({ cartCount = 0, onOpenCart }) {
                                     <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl p-5 border border-gray-200 z-50 text-center">
                                         <img
                                             src={logo}
-                                            alt="Pedidos 360"
+                                            alt="Pedidos 670"
                                             className="w-20 h-20 object-contain mx-auto"
                                         />
                                         <h3 className="mt-1 text-base font-extrabold text-gray-900">
